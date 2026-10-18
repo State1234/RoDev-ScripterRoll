@@ -1,0 +1,343 @@
+Movement/Lazar from hand Local Script is
+ local UIS = game:GetService("UserInputService")
+local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
+local TweenService = game:GetService("TweenService")
+
+local player = Players.LocalPlayer
+local camera = workspace.CurrentCamera
+local dashSound = workspace:WaitForChild("Sounds"):WaitForChild("Jump")
+local boing = workspace.Sounds:WaitForChild("Boing")
+
+local CAN_DASH = true
+local DASH_COOLDOWN = 1.5
+local DASH_DURATION = 0.6
+local DASH_SPEED = 50
+
+local hasDoubleJumped = false
+local forwardAnimTrack = nil
+local backAnimTrack = nil
+local rightAnimTrack = nil
+local leftAnimTrack = nil
+local doubleJumpAnimationTrack = nil
+
+local function setupCharacter(character)
+	CAN_DASH = true
+	hasDoubleJumped = false
+	local humanoid = character:WaitForChild("Humanoid")
+
+	local function loadAnim(id)
+		local anim = Instance.new("Animation")
+		anim.AnimationId = "rbxassetid://" .. id
+		return humanoid:LoadAnimation(anim)
+	end
+
+	forwardAnimTrack = loadAnim("117750477982930")
+	forwardAnimTrack.Priority = Enum.AnimationPriority.Action
+
+	backAnimTrack = loadAnim("81293728806651")
+	backAnimTrack.Priority = Enum.AnimationPriority.Action
+
+	rightAnimTrack = loadAnim("72467721996992")
+	rightAnimTrack.Priority = Enum.AnimationPriority.Action
+
+	leftAnimTrack = loadAnim("79561302979104")
+	leftAnimTrack.Priority = Enum.AnimationPriority.Action
+
+	doubleJumpAnimationTrack = loadAnim("71284951077000")
+	doubleJumpAnimationTrack.Priority = Enum.AnimationPriority.Action
+
+	humanoid.StateChanged:Connect(function(_, newState)
+		if newState == Enum.HumanoidStateType.Running then
+			hasDoubleJumped = false
+		end
+	end)
+end
+
+player.CharacterAdded:Connect(setupCharacter)
+if player.Character then
+	setupCharacter(player.Character)
+end
+
+local function Shake(humanoid)
+	if not humanoid then return end
+	local x, y, z = math.random(-100, 100) / 100, math.random(-100, 100) / 100, math.random(-100, 100) / 100
+	for i = 1, 20 do
+		humanoid.CameraOffset = Vector3.new(x, y, z)
+		task.wait()
+	end
+	humanoid.CameraOffset = Vector3.new(0, 0, 0)
+end
+
+local function spawnDoubleJumpVFX(rootPart)
+	local vfxPart = Instance.new("Part")
+	vfxPart.Size = Vector3.new(0.5, 0.5, 0.5)
+	vfxPart.Transparency = 0.2
+	vfxPart.Color = Color3.fromRGB(58, 58, 58)
+	vfxPart.Material = Enum.Material.Neon
+	vfxPart.Shape = Enum.PartType.Cylinder
+	vfxPart.Anchored = true
+	vfxPart.CanCollide = false
+
+	vfxPart.CFrame = rootPart.CFrame * CFrame.new(0, -3, 0) * CFrame.Angles(0, 0, math.rad(90))
+	vfxPart.Parent = workspace
+
+	local pEmit = Instance.new("ParticleEmitter")
+	pEmit.Color = ColorSequence.new(Color3.fromRGB(150, 150, 150), Color3.fromRGB(40, 40, 40))
+	pEmit.Size = NumberSequence.new({NumberSequenceKeypoint.new(0, 1), NumberSequenceKeypoint.new(1, 0)})
+	pEmit.Lifetime = NumberRange.new(0.3, 0.5)
+	pEmit.Rate = 0
+	pEmit.Speed = NumberRange.new(15, 25)
+	pEmit.Parent = vfxPart
+	pEmit:Emit(40)
+
+	local tweenInfo = TweenInfo.new(0.4, Enum.EasingStyle.Exponential, Enum.EasingDirection.Out)
+	local tween = TweenService:Create(vfxPart, tweenInfo, {
+		Size = Vector3.new(0.5, 18, 18),
+		Transparency = 1
+	})
+
+	tween:Play()
+	tween.Completed:Connect(function()
+		vfxPart:Destroy()
+	end)
+end
+
+local function spawnGhostClone(character)
+	local clone = Instance.new("Model")
+	clone.Name = "DashGhost"
+
+	for _, part in ipairs(character:GetChildren()) do
+		if part:IsA("BasePart") and part.Name ~= "HumanoidRootPart" then
+			local pClone = part:Clone()
+			pClone.Anchored = true
+			pClone.CanCollide = false
+			pClone.Color = Color3.fromRGB(30, 30, 30)
+			pClone.Material = Enum.Material.SmoothPlastic
+			pClone.Transparency = 0.4
+			for _, child in ipairs(pClone:GetChildren()) do
+				if not child:IsA("SpecialMesh") then
+					child:Destroy()
+				end
+			end
+			pClone.Parent = clone
+		end
+	end
+	clone.Parent = workspace
+
+	for _, part in ipairs(clone:GetChildren()) do
+		if part:IsA("BasePart") then
+			local originalPart = character:FindFirstChild(part.Name)
+			if originalPart then
+				part.CFrame = originalPart.CFrame
+			end
+		end
+	end
+
+	task.spawn(function()
+		local startTime = os.clock()
+		local duration = 0.35
+		while os.clock() - startTime < duration do
+			RunService.RenderStepped:Wait()
+			local alpha = (os.clock() - startTime) / duration
+			for _, part in ipairs(clone:GetChildren()) do
+				if part:IsA("BasePart") then
+					part.Transparency = 0.4 + (0.6 * alpha)
+				end
+			end
+		end
+		clone:Destroy()
+	end)
+end
+
+local function spawnImpactEffect(hitPosition)
+	local part = Instance.new("Part")
+	part.Size = Vector3.new(0.5, 0.5, 0.5)
+	part.Anchored = true
+	part.CanCollide = false
+	part.Material = Enum.Material.Neon
+	part.Color = Color3.fromRGB(255, 100, 0)
+	part.Shape = Enum.PartType.Cylinder
+	part.CFrame = CFrame.new(hitPosition) * CFrame.Angles(0, 0, math.rad(90))
+	part.Parent = workspace
+
+	local tweenInfo = TweenInfo.new(0.3, Enum.EasingStyle.Exponential, Enum.EasingDirection.Out)
+	local tween = TweenService:Create(part, tweenInfo, {
+		Size = Vector3.new(0.5, 10, 10),
+		Transparency = 1
+	})
+
+	tween:Play()
+	tween.Completed:Connect(function()
+		part:Destroy()
+	end)
+end
+
+local function flashCharacterRed(character)
+	for _, part in ipairs(character:GetChildren()) do
+		if part:IsA("BasePart") and part.Name ~= "HumanoidRootPart" then
+			local originalColor = part.Color
+			local originalMaterial = part.Material
+
+			part.Color = Color3.fromRGB(255, 0, 0)
+			part.Material = Enum.Material.Neon
+
+			task.delay(0.15, function()
+				if part and part.Parent then
+					part.Color = originalColor
+					part.Material = originalMaterial
+				end
+			end)
+		end
+	end
+end
+
+local function checkHitbox(rootPart, damagedTargets)
+	local overlapParams = OverlapParams.new()
+	overlapParams.FilterType = Enum.RaycastFilterType.Exclude
+	overlapParams.FilterDescendantsInstances = {player.Character}
+
+	local parts = workspace:GetPartsInPart(rootPart, overlapParams)
+
+	for _, part in ipairs(parts) do
+		local enemyChar = part.Parent
+		local enemyHumanoid = enemyChar:FindFirstChildOfClass("Humanoid")
+		local enemyRoot = enemyChar:FindFirstChild("HumanoidRootPart")
+
+		if enemyHumanoid and enemyRoot and not damagedTargets[enemyChar] then
+			damagedTargets[enemyChar] = true
+
+			flashCharacterRed(enemyChar)
+			spawnImpactEffect(enemyRoot.Position)
+
+			enemyHumanoid.Health = 0
+			local knockbackDir = (enemyRoot.Position - rootPart.Position).Unit
+			enemyRoot.AssemblyLinearVelocity = knockbackDir * 80 + Vector3.new(0, 45, 0)
+		end
+	end
+end
+
+UIS.InputBegan:Connect(function(input, gameProcessed)
+	if gameProcessed then return end
+
+	local character = player.Character
+	if not character then return end
+	local humanoid = character:FindFirstChildOfClass("Humanoid")
+	local humanoidRootPart = character:FindFirstChild("HumanoidRootPart")
+	if not humanoid or not humanoidRootPart or humanoid.Health <= 0 then return end
+
+	if input.KeyCode == Enum.KeyCode.Space then
+		local currentState = humanoid:GetState()
+		if (currentState == Enum.HumanoidStateType.Freefall or currentState == Enum.HumanoidStateType.Jumping) and not hasDoubleJumped then
+			hasDoubleJumped = true
+
+			boing:Play()
+			if doubleJumpAnimationTrack then
+				doubleJumpAnimationTrack:Play()
+			end
+
+			humanoidRootPart.AssemblyLinearVelocity = Vector3.new(
+				humanoidRootPart.AssemblyLinearVelocity.X, 
+				55, 
+				humanoidRootPart.AssemblyLinearVelocity.Z
+			)
+
+			spawnDoubleJumpVFX(humanoidRootPart)
+			task.spawn(function()
+				Shake(humanoid)
+			end)
+		end
+		return
+	end
+
+	if input.KeyCode ~= Enum.KeyCode.Q then return end
+	if not CAN_DASH then return end
+
+	CAN_DASH = false
+	local originalWalkSpeed = humanoid.WalkSpeed
+	humanoid.WalkSpeed = 0
+
+	dashSound:Play()
+
+	local dashAttachment = Instance.new("Attachment")
+	dashAttachment.Name = "DashAttachment"
+	dashAttachment.Parent = humanoidRootPart
+
+	local lv = Instance.new("LinearVelocity")
+	lv.Attachment0 = dashAttachment
+	lv.MaxForce = 150000
+	lv.VectorVelocity = Vector3.zero
+	lv.Parent = humanoidRootPart
+
+	local camLook = camera.CFrame.LookVector
+	local camRight = camera.CFrame.RightVector
+	local flatCamLook = Vector3.new(camLook.X, 0, camLook.Z).Unit
+	local flatCamRight = Vector3.new(camRight.X, 0, camRight.Z).Unit
+
+	local dashDir = Vector3.zero
+
+	local isW = UIS:IsKeyDown(Enum.KeyCode.W)
+	local isS = UIS:IsKeyDown(Enum.KeyCode.S)
+	local isA = UIS:IsKeyDown(Enum.KeyCode.A)
+	local isD = UIS:IsKeyDown(Enum.KeyCode.D)
+
+	if isW and not isS then
+		dashDir = flatCamLook
+		if forwardAnimTrack then forwardAnimTrack:Play() end
+	elseif isS and not isW then
+		dashDir = -flatCamLook
+		if backAnimTrack then backAnimTrack:Play() end
+	elseif isA and not isD then
+		dashDir = -flatCamRight
+		if leftAnimTrack then leftAnimTrack:Play() end
+	elseif isD and not isA then
+		dashDir = flatCamRight
+		if rightAnimTrack then rightAnimTrack:Play() end
+	else
+		dashDir = flatCamLook
+		if forwardAnimTrack then forwardAnimTrack:Play() end
+	end
+
+	lv.VectorVelocity = dashDir * DASH_SPEED
+
+	task.spawn(function()
+		Shake(humanoid)
+	end)
+
+	local startTime = os.clock()
+	local lastGhostTime = 0
+	local damagedTargets = {}
+
+	local connection
+	connection = RunService.RenderStepped:Connect(function()
+		if not character.Parent or humanoid.Health <= 0 then
+			connection:Disconnect()
+			lv:Destroy()
+			dashAttachment:Destroy()
+			humanoid.WalkSpeed = originalWalkSpeed
+			CAN_DASH = true
+			return
+		end
+
+		if os.clock() - lastGhostTime >= 0.08 then
+			lastGhostTime = os.clock()
+			spawnGhostClone(character)
+		end
+
+		checkHitbox(humanoidRootPart, damagedTargets)
+
+		if os.clock() - startTime >= DASH_DURATION then
+			connection:Disconnect()
+			lv:Destroy()
+			dashAttachment:Destroy()
+
+			humanoid.WalkSpeed = originalWalkSpeed
+
+			task.delay(DASH_COOLDOWN - DASH_DURATION, function()
+				CAN_DASH = true
+			end)
+		end
+	end)
+end)
+
+

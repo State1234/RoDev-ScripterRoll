@@ -1,0 +1,307 @@
+
+The server script for the admin is
+
+
+
+ local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local Players = game:GetService("Players")
+local AdminCommandEvent = ReplicatedStorage.Remotes:WaitForChild("AdminCommandEvent")
+
+local function findPlayer(nameString)
+	if not nameString then return nil end
+	for _, player in ipairs(Players:GetPlayers()) do
+		if string.lower(string.sub(player.Name, 1, #nameString)) == string.lower(nameString) then
+			return player
+		end
+	end
+	return nil
+end
+
+AdminCommandEvent.OnServerEvent:Connect(function(sender, command, targetArg1, targetArg2)
+	local targetPlayer
+	local value
+
+	if command == "Speed" or command == "Jump" then
+		value = targetArg1
+		if targetArg2 and targetArg2 ~= "" then
+			targetPlayer = findPlayer(targetArg2)
+		else
+			targetPlayer = sender
+		end
+	else
+		targetPlayer = findPlayer(targetArg1)
+	end
+
+	if not targetPlayer then
+		AdminCommandEvent:FireClient(sender, false, "Player not found!")
+		return
+	end
+
+	if command == "Kick" then
+		local targetName = targetPlayer.Name
+		targetPlayer:Kick("You have been kicked by an administrator.")
+		AdminCommandEvent:FireClient(sender, true, "Kicked " .. targetName)
+
+	elseif command == "Ban" then
+		local targetName = targetPlayer.Name
+		targetPlayer:Kick("You have been banned by an administrator.")
+		AdminCommandEvent:FireClient(sender, true, "Banned " .. targetName)
+
+	elseif command == "Speed" then
+		local numVal = tonumber(value)
+		if numVal and targetPlayer.Character and targetPlayer.Character:FindFirstChild("Humanoid") then
+			targetPlayer.Character.Humanoid.WalkSpeed = numVal
+			AdminCommandEvent:FireClient(sender, true, "Speed set!")
+			return
+		end
+		AdminCommandEvent:FireClient(sender, false, "Invalid speed!")
+
+	elseif command == "Jump" then
+		local numVal = tonumber(value)
+		if numVal and targetPlayer.Character and targetPlayer.Character:FindFirstChild("Humanoid") then
+			local humanoid = targetPlayer.Character.Humanoid
+			humanoid.JumpHeight = numVal
+			AdminCommandEvent:FireClient(sender, true, "Jump set!")
+			return
+		end
+		AdminCommandEvent:FireClient(sender, false, "Invalid jump!")
+	end
+end)
+
+The local script for the admin is 
+local UI = script.Parent
+local Main = UI:WaitForChild("AdminMainFrame")
+local OpenInv = UI:WaitForChild("OpenAdmin")
+local kick = Main:WaitForChild("Kick")
+local ban = Main:WaitForChild("Ban")
+local jump = Main:WaitForChild("Jump")
+local speed = Main.Jump:WaitForChild("Speed")
+local Close = Main:WaitForChild("X")
+local KickFrame = Main:WaitForChild("KickFrame")
+local BanFrame = Main:WaitForChild("BanFrame")
+local SpeedFrame = Main:WaitForChild("SpeedFrame")
+local JumpFrame = Main:WaitForChild("JumpFrame")
+
+local TypeKick = KickFrame:WaitForChild("TypeKick")
+local TypeBan = BanFrame:WaitForChild("TypeBan")
+local TypeSpeed = SpeedFrame:WaitForChild("TypeSpeed")
+local TypeJump = JumpFrame:WaitForChild("TypeJump")
+
+local KickClose = KickFrame:WaitForChild("X2")
+local BanClose = BanFrame:WaitForChild("X3")
+local SpeedClose = SpeedFrame:WaitForChild("X1")
+local JumpClose = JumpFrame:WaitForChild("X4")
+
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local AdminCommandEvent = ReplicatedStorage.Remotes:WaitForChild("AdminCommandEvent")
+
+local sound = workspace.Click
+sound.Volume = 5
+
+local Players = game:GetService("Players")
+local TweenService = game:GetService("TweenService")
+
+local Hoverui = {
+	X = Close,
+	openinv = OpenInv,
+	kick = kick,
+	ban = ban,
+	speed = speed,
+	jump = jump,
+}
+
+local tweenInfo = TweenInfo.new(0.2, Enum.EasingStyle.Quad, Enum.EasingDirection.Out)
+local originalSizes = {}
+
+for name, button in pairs(Hoverui) do
+	originalSizes[button] = button.Size
+
+	local targetSize = UDim2.new(
+		originalSizes[button].X.Scale, 
+		originalSizes[button].X.Offset * 1.1, 
+		originalSizes[button].Y.Scale, 
+		originalSizes[button].Y.Offset * 1.1
+	)
+
+	button.MouseEnter:Connect(function()
+		local tween = TweenService:Create(button, tweenInfo, {Size = targetSize})
+		tween:Play()
+	end)
+
+	button.MouseLeave:Connect(function()
+		local tween = TweenService:Create(button, tweenInfo, {Size = originalSizes[button]})
+		tween:Play()
+	end)
+end
+
+local originalMainSize = Main.Size
+local frameOriginalSizes = {
+	[KickFrame] = KickFrame.Size,
+	[BanFrame] = BanFrame.Size,
+	[SpeedFrame] = SpeedFrame.Size,
+	[JumpFrame] = JumpFrame.Size,
+}
+
+local function animateOpen(frame, textBox)
+	sound:Play()
+	local ogSize = frameOriginalSizes[frame]
+
+	frame.Size = UDim2.new(0, 0, 0, 0)
+	frame.AnchorPoint = Vector2.new(0.5, 0.5)
+	frame.Position = UDim2.new(0.5, 0, 0.5, 0)
+	frame.Visible = true
+
+	local tween = TweenService:Create(frame, TweenInfo.new(0.3, Enum.EasingStyle.Back, Enum.EasingDirection.Out), {
+		Size = ogSize
+	})
+	tween:Play()
+
+	task.delay(0.1, function()
+		if textBox then
+			textBox:CaptureFocus()
+		end
+	end)
+end
+
+local function animateClose(frame)
+	sound:Play()
+	local ogSize = frameOriginalSizes[frame]
+
+	local tween = TweenService:Create(frame, TweenInfo.new(0.2, Enum.EasingStyle.Quad, Enum.EasingDirection.In), {
+		Size = UDim2.new(0, 0, 0, 0)
+	})
+	tween:Play()
+
+	tween.Completed:Connect(function()
+		frame.Visible = false
+		frame.Size = ogSize
+		frame.AnchorPoint = Vector2.new(0, 0)
+		frame.Position = UDim2.new(0.5, -ogSize.X.Offset/2, 0.5, -ogSize.Y.Offset/2)
+	end)
+end
+
+OpenInv.MouseButton1Click:Connect(function()
+	sound:Play()
+	Main.Size = UDim2.new(0, 0, 0, 0)
+	Main.AnchorPoint = Vector2.new(0.5, 0.5)
+	Main.Position = UDim2.new(0.5, 0, 0.5, 0)
+	Main.Visible = true
+
+	local mainOpenTween = TweenService:Create(
+		Main, 
+		TweenInfo.new(0.3, Enum.EasingStyle.Back, Enum.EasingDirection.Out), 
+		{Size = originalMainSize}
+	)
+	mainOpenTween:Play()
+end)
+
+Close.MouseButton1Click:Connect(function()
+	sound:Play()
+	local mainCloseTween = TweenService:Create(
+		Main, 
+		TweenInfo.new(0.2, Enum.EasingStyle.Quad, Enum.EasingDirection.In), 
+		{Size = UDim2.new(0, 0, 0, 0)}
+	)
+	mainCloseTween:Play()
+
+	mainCloseTween.Completed:Connect(function()
+		Main.Visible = false
+		Main.Size = originalMainSize
+		Main.AnchorPoint = Vector2.new(0, 0)
+		Main.Position = UDim2.new(0.5, -originalMainSize.X.Offset/2, 0.5, -originalMainSize.Y.Offset/2)
+	end)
+end)
+
+kick.MouseButton1Click:Connect(function()
+	animateOpen(KickFrame, TypeKick)
+end)
+
+ban.MouseButton1Click:Connect(function()
+	animateOpen(BanFrame, TypeBan)
+end)
+
+speed.MouseButton1Click:Connect(function()
+	animateOpen(SpeedFrame, TypeSpeed)
+end)
+
+jump.MouseButton1Click:Connect(function()
+	animateOpen(JumpFrame, TypeJump)
+end)
+
+KickClose.MouseButton1Click:Connect(function()
+	animateClose(KickFrame)
+end)
+
+BanClose.MouseButton1Click:Connect(function()
+	animateClose(BanFrame)
+end)
+
+SpeedClose.MouseButton1Click:Connect(function()
+	animateClose(SpeedFrame)
+end)
+
+JumpClose.MouseButton1Click:Connect(function()
+	animateClose(JumpFrame)
+end)
+
+AdminCommandEvent.OnClientEvent:Connect(function(success, message)
+end)
+
+local function parseAndExecute(textBox, frame, commandName)
+	sound:Play()
+	local text = textBox.Text
+	text = string.gsub(text, "^%s*(.-)%s*$", "%1")
+	text = string.gsub(text, "^%s*:%a+%s*", "")
+
+	local parts = {}
+	for word in string.gmatch(text, "%S+") do
+		table.insert(parts, word)
+	end
+
+	local arg1 = parts[1]
+	local arg2 = parts[2]
+
+	if arg1 then
+		AdminCommandEvent:FireServer(commandName, arg1, arg2)
+		textBox.Text = "Executed!"
+		task.delay(1.5, function()
+			textBox.Text = ""
+			animateClose(frame)
+		end)
+	else
+		textBox.Text = "Invalid Input!"
+		task.delay(1.5, function()
+			if textBox.Text == "Invalid Input!" then
+				textBox.Text = ""
+			end
+		end)
+	end
+end
+
+TypeKick.FocusLost:Connect(function(enterPressed)
+	if enterPressed then
+		parseAndExecute(TypeKick, KickFrame, "Kick")
+	end
+end)
+
+TypeBan.FocusLost:Connect(function(enterPressed)
+	if enterPressed then
+		parseAndExecute(TypeBan, BanFrame, "Ban")
+	end
+end)
+
+TypeSpeed.FocusLost:Connect(function(enterPressed)
+	if enterPressed then
+		parseAndExecute(TypeSpeed, SpeedFrame, "Speed")
+	end
+end)
+
+TypeJump.FocusLost:Connect(function(enterPressed)
+	if enterPressed then
+		parseAndExecute(TypeJump, JumpFrame, "Jump")
+	end
+end)
+
+
+
+

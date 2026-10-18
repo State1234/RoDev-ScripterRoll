@@ -1,0 +1,343 @@
+The roll server script is 
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local MarketplaceService = game:GetService("MarketplaceService")
+
+local Remotes = ReplicatedStorage:WaitForChild("Remotes")
+local AuraData = require(Remotes:WaitForChild("AuraData"))
+local RollEvent = Remotes:WaitForChild("RollEvent")
+local StoreAura = Remotes:WaitForChild("StoreAura")
+local DeleteAura = Remotes:WaitForChild("DeleteAura")
+
+local GAMEPASS_ID = 1822222320
+
+local function getActiveWeight(data, hasPass)
+	local weight = data.Weight or 1
+	if hasPass and data.Rarity ~= "Common" then
+		return weight * 2
+	end
+	return weight
+end
+
+local function rollAura(hasPass)
+	local totalWeight = 0
+
+	for _, data in pairs(AuraData.Auras) do
+		totalWeight += getActiveWeight(data, hasPass)
+	end
+
+	if totalWeight <= 0 then
+		return "plbl_rivals", "Common", "1 in 6"
+	end
+
+	local randomValue = math.random(1, totalWeight)
+	local current = 0
+
+	for auraName, data in pairs(AuraData.Auras) do
+		local weight = getActiveWeight(data, hasPass)
+		current += weight
+
+		if randomValue <= current then
+			local exactOdds = math.floor((totalWeight / weight) + 0.5)
+			local oddsText = "1 in " .. exactOdds
+			return auraName, data.Rarity, oddsText
+		end
+	end
+
+	return "plbl_rivals", "Common", "1 in 6"
+end
+
+RollEvent.OnServerInvoke = function(player)
+	local hasPass = false
+
+	local success, owned = pcall(function()
+		return MarketplaceService:UserOwnsGamePassAsync(player.UserId, GAMEPASS_ID)
+	end)
+
+	if success and owned then
+		hasPass = true
+	end
+
+	local aura, rarity, oddsText = rollAura(hasPass)
+	return aura, rarity, oddsText
+end
+
+StoreAura.OnServerEvent:Connect(function(player, auraName)
+	if typeof(auraName) ~= "string" then return end
+	if not AuraData.Auras[auraName] then return end
+
+	local inv = player:FindFirstChild("Inventory")
+	if not inv then
+		inv = Instance.new("Folder")
+		inv.Name = "Inventory"
+		inv.Parent = player
+	end
+
+	local item = inv:FindFirstChild(auraName)
+	if not item then
+		item = Instance.new("IntValue")
+		item.Name = auraName
+		item.Value = 1
+		item.Parent = inv
+	else
+		item.Value += 1
+	end
+end)
+
+DeleteAura.OnServerEvent:Connect(function(player, auraName)
+	if typeof(auraName) ~= "string" then return end
+
+	local inv = player:FindFirstChild("Inventory")
+	if inv then
+		local item = inv:FindFirstChild(auraName)
+		if item then
+			if item:IsA("IntValue") and item.Value > 1 then
+				item.Value -= 1
+			else
+				item:Destroy()
+			end
+		end
+	end
+end) 
+
+
+
+
+
+
+
+
+
+
+
+THE LOCAL SCRIPT IS
+local Players = game:GetService("Players")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local TweenService = game:GetService("TweenService")
+
+local localPlayer = Players.LocalPlayer
+local playerGui = localPlayer:WaitForChild("PlayerGui")
+
+local AuraData = require(ReplicatedStorage.Remotes:WaitForChild("AuraData"))  
+local AddInventoryAura = ReplicatedStorage:WaitForChild("AddInventoryAura", 10)
+
+local RollUI = script.Parent
+local RollButton = playerGui:WaitForChild("NielsbcgggcButtons"):WaitForChild("RollButton")
+local sound = workspace.Sounds.AfterRollSound
+
+local bottom = RollUI.IgotCellsRoll.Main.Middle.Bottom
+local Middle = RollUI.IgotCellsRoll.Main.Middle.MiddleRoll
+local Top = RollUI.IgotCellsRoll.Main.Middle.Top
+
+local Name1 = Top:WaitForChild("Name1")
+local Name2 = Middle:WaitForChild("Name2")
+local Name3 = bottom:WaitForChild("Name3")
+
+local Rarity1 = Top:FindFirstChild("Rarity")
+local Rarity2 = Middle:FindFirstChild("Rarity")
+local Rarity3 = bottom:FindFirstChild("Rarity")
+
+local RolledText = RollUI.IgotCellsRoll.Main:FindFirstChild("RolledText")
+
+if RolledText then
+	RolledText.Visible = false
+	RolledText.TextWrapped = true
+	RolledText.TextXAlignment = Enum.TextXAlignment.Center
+	RolledText.Size = UDim2.new(1, 0, 0, 100)
+end
+
+if Rarity1 then Rarity1.Visible = false end
+if Rarity2 then Rarity2.Visible = false end
+if Rarity3 then Rarity3.Visible = false end
+
+local RarityColors = {
+	Common = Color3.fromRGB(180, 180, 180),
+	Rare = Color3.fromRGB(75, 150, 255),
+	Epic = Color3.fromRGB(170, 0, 255),
+	Legendary = Color3.fromRGB(255, 170, 0),
+	Mythic = Color3.fromRGB(255, 0, 85),
+	Divine = Color3.fromRGB(255, 230, 100)
+}
+
+local isRolling = false
+local hasOpenedOnce = false  
+local thumbnailCache = {}
+
+local devUsernames = {}
+local totalWeight = 0
+
+for name, devInfo in pairs(AuraData.Auras) do
+	table.insert(devUsernames, name)
+	totalWeight = totalWeight + (devInfo.Weight or 1)
+end
+
+local function getDevChance(name)
+	local devInfo = AuraData.Auras[name]
+	if devInfo then
+		local weight = devInfo.Weight or 1
+		return math.round(totalWeight / weight)
+	end
+	return 1
+end
+
+local function preloadThumbnails()
+	for _, username in ipairs(devUsernames) do
+		task.spawn(function()
+			local success, userId = pcall(function()
+				return Players:GetUserIdFromNameAsync(username)
+			end)
+
+			if success then
+				local thumbnail, _ = Players:GetUserThumbnailAsync(
+					userId,
+					Enum.ThumbnailType.AvatarBust,
+					Enum.ThumbnailSize.Size420x420
+				)
+				thumbnailCache[username] = thumbnail
+			end
+		end)
+	end
+end
+
+preloadThumbnails()
+
+local function getRandomDev()
+	local randomValue = math.random() * totalWeight
+	local currentWeight = 0
+
+	for name, devInfo in pairs(AuraData.Auras) do
+		currentWeight = currentWeight + (devInfo.Weight or 1)
+		if randomValue <= currentWeight then
+			local weight = devInfo.Weight or 1
+			local chance = math.round(totalWeight / weight)
+			return name, devInfo.Rarity, chance
+		end
+	end
+
+	return devUsernames[1], "Common", 1
+end
+
+RollButton.MouseButton1Click:Connect(function()
+	if isRolling then
+		return
+	end
+
+	if not hasOpenedOnce or not RollUI.IgotCellsRoll.Visible then
+		RollUI.IgotCellsRoll.Visible = true
+		hasOpenedOnce = true
+		return
+	end
+
+	isRolling = true
+
+	if RolledText then
+		RolledText.Visible = false
+	end
+	if Rarity1 then Rarity1.Visible = false end
+	if Rarity2 then Rarity2.Visible = false end
+	if Rarity3 then Rarity3.Visible = false end
+
+	local finalDev, finalRarity, finalChance = getRandomDev()
+
+	local cycles = 28
+	local speed = 0.06
+
+	for i = 1, cycles do
+		local topDev = devUsernames[math.random(#devUsernames)]
+		local middleDev = devUsernames[math.random(#devUsernames)]
+		local bottomDev = devUsernames[math.random(#devUsernames)]
+
+		if i == cycles then
+			middleDev = finalDev
+		end
+
+		Top.Image = thumbnailCache[topDev] or "rbxasset://textures/ui/GuiImagePlaceholder.png"
+		Middle.Image = thumbnailCache[middleDev] or "rbxasset://textures/ui/GuiImagePlaceholder.png"
+		bottom.Image = thumbnailCache[bottomDev] or "rbxasset://textures/ui/GuiImagePlaceholder.png"
+
+		Name1.Text = topDev
+		Name2.Text = middleDev
+		Name3.Text = bottomDev
+
+		if Rarity1 then Rarity1.Text = "1/" .. tostring(getDevChance(topDev)) end
+		if Rarity2 then Rarity2.Text = "1/" .. tostring(getDevChance(middleDev)) end
+		if Rarity3 then Rarity3.Text = "1/" .. tostring(getDevChance(bottomDev)) end
+
+		if i > 15 then
+			speed = speed + 0.025
+		end
+
+		task.wait(speed)
+	end
+
+	Middle.Image = thumbnailCache[finalDev] or "rbxasset://textures/ui/GuiImagePlaceholder.png"
+	Name2.Text = finalDev
+
+
+	if Rarity2 then
+		Rarity2.Text = "1/" .. tostring(finalChance)
+		Rarity2.TextColor3 = RarityColors[finalRarity] or Color3.fromRGB(255, 255, 255)
+
+		Rarity2.TextScaled = false
+		Rarity2.AnchorPoint = Vector2.new(0.5, 0.5)
+		Rarity2.TextSize = 14
+		Rarity2.Visible = true
+
+		local rarityPopInfo = TweenInfo.new(0.25, Enum.EasingStyle.Back, Enum.EasingDirection.Out)
+		local rarityPopTween = TweenService:Create(Rarity2, rarityPopInfo, {TextSize = 22})
+		rarityPopTween:Play()
+
+		rarityPopTween.Completed:Connect(function()
+			local rarityPulseInfo = TweenInfo.new(
+				0.35,
+				Enum.EasingStyle.Sine,
+				Enum.EasingDirection.InOut,
+				3,
+				true
+			)
+			local rarityPulseTween = TweenService:Create(Rarity2, rarityPulseInfo, {TextSize = 26})
+			rarityPulseTween:Play()
+		end)
+	end
+
+	
+	if RolledText then
+		RolledText.Text = "You Rolled: " .. finalDev .. "\nRarity: " .. tostring(finalRarity)
+		RolledText.TextColor3 = RarityColors[finalRarity] or Color3.fromRGB(255, 255, 255)
+
+		RolledText.TextScaled = false
+		RolledText.AnchorPoint = Vector2.new(0.5, 0.5)
+		RolledText.TextSize = 15  
+		RolledText.Visible = true
+
+		if sound then
+			sound:Play()
+		end
+
+		local popTweenInfo = TweenInfo.new(0.25, Enum.EasingStyle.Back, Enum.EasingDirection.Out)
+		local popTween = TweenService:Create(RolledText, popTweenInfo, {TextSize = 20})
+		popTween:Play()
+
+		popTween.Completed:Connect(function()
+			local pulseTweenInfo = TweenInfo.new(
+				0.35,
+				Enum.EasingStyle.Sine,
+				Enum.EasingDirection.InOut,
+				3,
+				true
+			)
+
+			local pulseTween = TweenService:Create(RolledText, pulseTweenInfo, {TextSize = 24})
+			pulseTween:Play()
+		end)
+	end
+
+	if AddInventoryAura then
+		AddInventoryAura:FireServer(finalDev, finalRarity)
+	else
+		warn("AddInventoryAura RemoteEvent not found in ReplicatedStorage!")
+	end
+
+	task.wait(2.5)
+
+	isRolling = false
+end)

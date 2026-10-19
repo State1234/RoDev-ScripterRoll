@@ -1,5 +1,4 @@
-Movement/Lazar from hand Local Script is
- local UIS = game:GetService("UserInputService")
+local UIS = game:GetService("UserInputService")
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local TweenService = game:GetService("TweenService")
@@ -21,6 +20,7 @@ local rightAnimTrack = nil
 local leftAnimTrack = nil
 local doubleJumpAnimationTrack = nil
 
+-- Sets up and loads animations for the player's character upon spawning
 local function setupCharacter(character)
 	CAN_DASH = true
 	hasDoubleJumped = false
@@ -59,6 +59,7 @@ if player.Character then
 	setupCharacter(player.Character)
 end
 
+-- Creates a random camera shake effect for impact feedback
 local function Shake(humanoid)
 	if not humanoid then return end
 	local x, y, z = math.random(-100, 100) / 100, math.random(-100, 100) / 100, math.random(-100, 100) / 100
@@ -69,6 +70,7 @@ local function Shake(humanoid)
 	humanoid.CameraOffset = Vector3.new(0, 0, 0)
 end
 
+-- Spawns particle and ring visual effects when the player double-jumps
 local function spawnDoubleJumpVFX(rootPart)
 	local vfxPart = Instance.new("Part")
 	vfxPart.Size = Vector3.new(0.5, 0.5, 0.5)
@@ -103,6 +105,7 @@ local function spawnDoubleJumpVFX(rootPart)
 	end)
 end
 
+-- Spawns temporary visual clone parts behind the player during a dash trail
 local function spawnGhostClone(character)
 	local clone = Instance.new("Model")
 	clone.Name = "DashGhost"
@@ -150,6 +153,7 @@ local function spawnGhostClone(character)
 	end)
 end
 
+-- Spawns an expanding visual impact effect where an enemy is hit
 local function spawnImpactEffect(hitPosition)
 	local part = Instance.new("Part")
 	part.Size = Vector3.new(0.5, 0.5, 0.5)
@@ -173,6 +177,7 @@ local function spawnImpactEffect(hitPosition)
 	end)
 end
 
+-- Briefly flashes an enemy character red when damaged by a dash attack
 local function flashCharacterRed(character)
 	for _, part in ipairs(character:GetChildren()) do
 		if part:IsA("BasePart") and part.Name ~= "HumanoidRootPart" then
@@ -192,6 +197,7 @@ local function flashCharacterRed(character)
 	end
 end
 
+-- Scans spatial parts around the player to detect and eliminate enemies during a dash
 local function checkHitbox(rootPart, damagedTargets)
 	local overlapParams = OverlapParams.new()
 	overlapParams.FilterType = Enum.RaycastFilterType.Exclude
@@ -217,6 +223,7 @@ local function checkHitbox(rootPart, damagedTargets)
 	end
 end
 
+-- Listens for user inputs to trigger double jumps and dashes
 UIS.InputBegan:Connect(function(input, gameProcessed)
 	if gameProcessed then return end
 
@@ -339,5 +346,3 @@ UIS.InputBegan:Connect(function(input, gameProcessed)
 		end
 	end)
 end)
-
-

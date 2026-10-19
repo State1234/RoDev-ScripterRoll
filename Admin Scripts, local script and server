@@ -1,12 +1,8 @@
-
-The server script for the admin is
-
-
-
- local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Players = game:GetService("Players")
 local AdminCommandEvent = ReplicatedStorage.Remotes:WaitForChild("AdminCommandEvent")
 
+-- Finds a player by typing part of their name
 local function findPlayer(nameString)
 	if not nameString then return nil end
 	for _, player in ipairs(Players:GetPlayers()) do
@@ -17,6 +13,7 @@ local function findPlayer(nameString)
 	return nil
 end
 
+-- Listens for commands sent by the client
 AdminCommandEvent.OnServerEvent:Connect(function(sender, command, targetArg1, targetArg2)
 	local targetPlayer
 	local value
@@ -68,7 +65,13 @@ AdminCommandEvent.OnServerEvent:Connect(function(sender, command, targetArg1, ta
 	end
 end)
 
-The local script for the admin is 
+
+
+
+
+
+The local script for the admin is
+-- variables
 local UI = script.Parent
 local Main = UI:WaitForChild("AdminMainFrame")
 local OpenInv = UI:WaitForChild("OpenAdmin")
@@ -101,6 +104,7 @@ sound.Volume = 5
 local Players = game:GetService("Players")
 local TweenService = game:GetService("TweenService")
 
+-- What ui to add the hover effect on
 local Hoverui = {
 	X = Close,
 	openinv = OpenInv,
@@ -113,6 +117,7 @@ local Hoverui = {
 local tweenInfo = TweenInfo.new(0.2, Enum.EasingStyle.Quad, Enum.EasingDirection.Out)
 local originalSizes = {}
 
+-- Adds hover scaling animation to buttons
 for name, button in pairs(Hoverui) do
 	originalSizes[button] = button.Size
 
@@ -142,6 +147,7 @@ local frameOriginalSizes = {
 	[JumpFrame] = JumpFrame.Size,
 }
 
+-- Opens sub-frames with an animation
 local function animateOpen(frame, textBox)
 	sound:Play()
 	local ogSize = frameOriginalSizes[frame]
@@ -163,6 +169,7 @@ local function animateOpen(frame, textBox)
 	end)
 end
 
+-- Closes sub-frames with an animation
 local function animateClose(frame)
 	sound:Play()
 	local ogSize = frameOriginalSizes[frame]
@@ -212,41 +219,20 @@ Close.MouseButton1Click:Connect(function()
 	end)
 end)
 
-kick.MouseButton1Click:Connect(function()
-	animateOpen(KickFrame, TypeKick)
-end)
+kick.MouseButton1Click:Connect(function() animateOpen(KickFrame, TypeKick) end)
+ban.MouseButton1Click:Connect(function() animateOpen(BanFrame, TypeBan) end)
+speed.MouseButton1Click:Connect(function() animateOpen(SpeedFrame, TypeSpeed) end)
+jump.MouseButton1Click:Connect(function() animateOpen(JumpFrame, TypeJump) end)
 
-ban.MouseButton1Click:Connect(function()
-	animateOpen(BanFrame, TypeBan)
-end)
-
-speed.MouseButton1Click:Connect(function()
-	animateOpen(SpeedFrame, TypeSpeed)
-end)
-
-jump.MouseButton1Click:Connect(function()
-	animateOpen(JumpFrame, TypeJump)
-end)
-
-KickClose.MouseButton1Click:Connect(function()
-	animateClose(KickFrame)
-end)
-
-BanClose.MouseButton1Click:Connect(function()
-	animateClose(BanFrame)
-end)
-
-SpeedClose.MouseButton1Click:Connect(function()
-	animateClose(SpeedFrame)
-end)
-
-JumpClose.MouseButton1Click:Connect(function()
-	animateClose(JumpFrame)
-end)
+KickClose.MouseButton1Click:Connect(function() animateClose(KickFrame) end)
+BanClose.MouseButton1Click:Connect(function() animateClose(BanFrame) end)
+SpeedClose.MouseButton1Click:Connect(function() animateClose(SpeedFrame) end)
+JumpClose.MouseButton1Click:Connect(function() animateClose(JumpFrame) end)
 
 AdminCommandEvent.OnClientEvent:Connect(function(success, message)
 end)
 
+-- Parses text input and sends the command to the server
 local function parseAndExecute(textBox, frame, commandName)
 	sound:Play()
 	local text = textBox.Text
@@ -279,29 +265,20 @@ local function parseAndExecute(textBox, frame, commandName)
 end
 
 TypeKick.FocusLost:Connect(function(enterPressed)
-	if enterPressed then
-		parseAndExecute(TypeKick, KickFrame, "Kick")
-	end
+	if enterPressed then parseAndExecute(TypeKick, KickFrame, "Kick") end
 end)
 
 TypeBan.FocusLost:Connect(function(enterPressed)
-	if enterPressed then
-		parseAndExecute(TypeBan, BanFrame, "Ban")
-	end
+	if enterPressed then parseAndExecute(TypeBan, BanFrame, "Ban") end
 end)
 
 TypeSpeed.FocusLost:Connect(function(enterPressed)
-	if enterPressed then
-		parseAndExecute(TypeSpeed, SpeedFrame, "Speed")
-	end
+	if enterPressed then parseAndExecute(TypeSpeed, SpeedFrame, "Speed") end
 end)
 
 TypeJump.FocusLost:Connect(function(enterPressed)
-	if enterPressed then
-		parseAndExecute(TypeJump, JumpFrame, "Jump")
-	end
+	if enterPressed then parseAndExecute(TypeJump, JumpFrame, "Jump") end
 end)
-
 
 
 
